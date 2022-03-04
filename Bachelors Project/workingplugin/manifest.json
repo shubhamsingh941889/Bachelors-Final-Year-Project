@@ -1,0 +1,26 @@
+{
+    "name": "Image captioner",
+    "description": "Create captions for all the images on the webpage",
+    "version": "1.0",
+    "permissions":[
+        "activeTab",
+        "tabs",
+        "<all_urls>"
+    ],
+    "icons":{
+        "128":"/images/icon.png"
+    },
+    "page_action":{
+        "default_icon":{
+            "128":"/images/icon.png"
+        }
+    },
+
+    "content_scripts": [{
+        "js": ["sweetalert.js","jquery.min.js","content.js"],
+        "css":["swal.css"],
+        "matches": ["<all_urls>"]
+    }],
+
+    "manifest_version": 2
+}

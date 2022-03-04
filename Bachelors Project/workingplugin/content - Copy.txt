@@ -1,0 +1,37 @@
+// var captions = [];
+// var captions = new Map();
+var ids = new Map();
+var i = 0;
+
+for (i = 0; i < 3; i++){
+    alert(document.images.item(i).src);
+    ids.set(document.images.item(i).src, i.toString());
+    alert(JSON.stringify(ids));
+    $.ajax({
+        url: "http://127.0.0.1:5000/" + document.images.item(i).src,
+        success: function(data) {
+            alert(data[0]['caption']);
+            // captions.push(data[0]['caption']);
+            // captions.set(ids[data[0]['url']], data[0]['caption']);
+            alert(data[0]['url']);
+            var numb = ids[data[0]['url']];
+            alert(numb);
+            document.images.item(numb).alt = document.images.item(numb).alt.concat(". Generated caption: ",data[0]['caption']);
+        },
+        error: function() {
+          alert("There was an error contacting the servers to process your image");
+        }
+    });
+}
+
+// $(document).ajaxStop(function(){
+//     alert(JSON.stringify(captions));
+//     for (i=0; i<document.images.length; i++){
+//         document.images.item(i).alt = document.images.item(i).alt.concat(". Generated caption: ",captions[i]);
+//     }
+// })
+// $(document).ajaxStop(function(){
+//     for( i = 0; i < document.images.length; i++){
+//         document.images.item(i).alt = document.images.item(i).alt.concat(". Generated caption: ",captions[i.toString()]);
+//     }
+// })
