@@ -1,8 +1,8 @@
-# Imports for  meta code
+    # Imports for  meta code
 import torch
-import numpy as np 
-import pickle 
-from torchvision import transforms 
+import numpy as np
+import pickle
+from torchvision import transforms
 from PIL import Image
 ###
 
@@ -12,15 +12,21 @@ import torchvision.models as models
 from torch.nn.utils.rnn import pack_padded_sequence
 ###
 
+
 ### Imports for flask
 from flask import Flask
 from flask_restful import Resource, Api
+from gevent.pywsgi import WSGIServer
 ###
 
 # Imports for image download
 import requests
 from io import BytesIO
 ###
+
+from urllib.parse import urljoin, urlparse
+from tqdm import tqdm
+from bs4 import BeautifulSoup as bs
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -55,7 +61,7 @@ class EncoderCNN(nn.Module):
         self.resnet = nn.Sequential(*modules)
         self.linear = nn.Linear(resnet.fc.in_features, embed_size)
         self.bn = nn.BatchNorm1d(embed_size, momentum=0.01)
-        
+
     def forward(self, images):
         """Extract feature vectors from input images."""
         with torch.no_grad():
@@ -73,16 +79,16 @@ class DecoderRNN(nn.Module):
         self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
         self.linear = nn.Linear(hidden_size, vocab_size)
         self.max_seg_length = max_seq_length
-        
+
     def forward(self, features, captions, lengths):
         """Decode image feature vectors and generates captions."""
         embeddings = self.embed(captions)
         embeddings = torch.cat((features.unsqueeze(1), embeddings), 1)
-        packed = pack_padded_sequence(embeddings, lengths, batch_first=True) 
+        packed = pack_padded_sequence(embeddings, lengths, batch_first=True)
         hiddens, _ = self.lstm(packed)
         outputs = self.linear(hiddens[0])
         return outputs
-    
+
     def sample(self, features, states=None):
         """Generate captions for given image features using greedy search."""
         sampled_ids = []
@@ -98,33 +104,37 @@ class DecoderRNN(nn.Module):
         return sampled_ids
 ###
 
-def load_image(url, transform=None):
-    response = requests.get(url)
-    image = Image.open(BytesIO(response.content))
-    image = image.resize([224, 224], Image.LANCZOS)
+
+def load_image(url):
     
+    try:
+        image = Image.open(requests.get(url, stream=True).raw)
+        image = image.resize([224, 224], Image.LANCZOS)
+        image = image.convert("RGB")
+        
+    except:
+        pass
     if transform is not None:
         image = transform(image).unsqueeze(0)
-    
     return image
 
 
 # Define variable values
-encoder_path = 'models/encoder-5-3000.pkl'
-decoder_path = 'models/decoder-5-3000.pkl'
-vocab_path = 'data/vocab.pkl'
+encoder_path = '/Users/shubh1/Desktop/Study Materials/PROJECTS/BE PROJ 1/models/encoder-5-3000.pkl'
+decoder_path = '/Users/shubh1/Desktop/Study Materials/PROJECTS/BE PROJ 1/models/decoder-5-3000.pkl'
+vocab_path = '/Users/shubh1/Desktop/Study Materials/PROJECTS/BE PROJ 1/data/vocab.pkl'
 embed_size = 256
 hidden_size = 512
 num_layers = 1
 
 # Image preprocessing
 transform = transforms.Compose([
-    transforms.ToTensor(), 
-    transforms.Normalize((0.485, 0.456, 0.406), 
+    transforms.ToTensor(),
+    transforms.Normalize((0.485, 0.456, 0.406),
                          (0.229, 0.224, 0.225))])
-    
+
 # Load vocabulary wrapper
-    
+
 with open(vocab_path, 'rb') as f:
     vocab = pickle.load(f)
 
@@ -148,7 +158,7 @@ def create_caption(image):
     feature = encoder(image_tensor)
     sampled_ids = decoder.sample(feature)
     sampled_ids = sampled_ids[0].cpu().numpy()          # (1, max_seq_length) -> (max_seq_length)
-    
+
     # Convert word_ids to words
     sampled_caption = []
     for word_id in sampled_ids:
@@ -157,7 +167,7 @@ def create_caption(image):
         if word == '<end>':
             break
     sentence = ' '.join(sampled_caption)
-    
+
     # Print out the image and the generated caption
     sentence = sentence[8:-7]
     return sentence
@@ -167,18 +177,27 @@ api = Api(app)
 
 class ImageCaptioning(Resource):
     def get(self,urls):
-        urls = urls[:-1].split(',')
+        urls = [urls]
+        print(urls)
         results = []
+       
         for url in urls:
-            headers = {"User-Agent": "Mozilla/5.0"}
+            
             try:
-                image = load_image(url,transform)
+                image = load_image(url)
+                
                 results.append({"url":url, "caption": create_caption(image)})
             except:
+                
                 results.append({"url": url, "caption": "error generating caption"})
+        # print(results[:5])
         return results
 
 api.add_resource(ImageCaptioning, '/<path:urls>')
+#app.run(port=5000)
+#http_server = WSGIServer(('', 5000), app)
+#http_server.serve_forever()
 
-if __name__ == '__main__':
-    app.run(debug=True) 
+# if __name__ == '__main__':
+#     app.run(threaded=True)
+app.run(port=5000, debug=True)
